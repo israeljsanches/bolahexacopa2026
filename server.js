@@ -35,7 +35,6 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify(data ? data.conteudo : {}));
         }
 
-        // SERVE ARQUIVOS ESTÁTICOS (HTML, CSS, JS)
         let filePath = path.join(PUBLIC_DIR, p.pathname === "/" ? "index.html" : p.pathname);
         fs.readFile(filePath, (err, content) => {
             if (err) { res.writeHead(404); res.end(); }
@@ -54,13 +53,12 @@ const server = http.createServer(async (req, res) => {
                 
                 if (p.pathname === "/api/visitas") {
                     await db.collection("apostas").deleteMany({});
-                    if (data.length > 0) await db.collection("apostas").insertMany(data);
+                    if (data && data.length > 0) await db.collection("apostas").insertMany(data);
                 } 
                 else if (p.pathname === "/api/gabarito") {
                     await db.collection("gabarito").updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
                 } 
                 else if (p.pathname === "/api/processar") {
-                    // LÓGICA DE PROCESSAMENTO DE PONTOS
                     const apostas = await db.collection("apostas").find().toArray();
                     const gabaritoDoc = await db.collection("gabarito").findOne({ _id: "atual" });
                     
@@ -68,14 +66,19 @@ const server = http.createServer(async (req, res) => {
                         const gabarito = gabaritoDoc.conteudo;
                         for (let aposta of apostas) {
                             let totalPontos = 0;
-                            for (let matchId in aposta.palpites) {
-                                if (gabarito[matchId]) {
-                                    const pA = aposta.palpites[matchId].goalsA;
-                                    const pB = aposta.palpites[matchId].goalsB;
-                                    const rA = gabarito[matchId].realA;
-                                    const rB = gabarito[matchId].realB;
-                                    if (pA === rA && pB === rB) totalPontos += 10;
-                                    else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
+                            // Segurança: verifica se existem palpites antes de iterar
+                            if (aposta.palpites) {
+                                for (let matchId in aposta.palpites) {
+                                    if (gabarito[matchId]) {
+                                        const p = aposta.palpites[matchId];
+                                        const r = gabarito[matchId];
+                                        // Conversão forçada para número evita erro de comparação
+                                        const pA = Number(p.goalsA), pB = Number(p.goalsB);
+                                        const rA = Number(r.realA), rB = Number(r.realB);
+                                        
+                                        if (pA === rA && pB === rB) totalPontos += 10;
+                                        else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
+                                    }
                                 }
                             }
                             await db.collection("apostas").updateOne({ _id: aposta._id }, { $set: { pontos: totalPontos } });
