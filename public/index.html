@@ -560,29 +560,37 @@
 
     async function atualizarListaTela() {
     const tabela = document.getElementById("tabelaApostadores");
-    tabela.innerHTML = "";
-    
-    // Busca do servidor em vez do localStorage
-    const response = await fetch('/api/visitas?t=' + new Date().getTime());
-    const apostadores = await response.json();
+    try {
+        const response = await fetch('/api/visitas?t=' + new Date().getTime());
+        
+        // Verifica se a resposta foi bem-sucedida (status 200)
+        if (!response.ok) throw new Error("Erro no servidor: " + response.status);
+        
+        const apostadores = await response.json();
 
-    if(apostadores.length === 0) return;
+        // Se chegar aqui, é porque o JSON é válido
+        tabela.innerHTML = "";
+        if(!apostadores || apostadores.length === 0) return;
 
-    apostadores.sort((a, b) => b.pontos - a.pontos);
-    
-    apostadores.forEach((ap, index) => {
-        const row = document.createElement('tr');
-        row.className = 'clickable-row';
-        row.onclick = () => abrirCanhotoHistorico(index);
-        row.innerHTML = `
-            <td><strong>📁 ${ap.nome}</strong></td>
-            <td>${ap.cpf}</td>
-            <td>${ap.rodada}</td>
-            <td><span style="background:#106244; color:white; padding:4px 10px; border-radius:12px; font-weight:bold;">${ap.pontos} pts</span></td>
-            <td style="color:#718096; font-size:12px;">${ap.horario}</td>
-        `;
-        tabela.appendChild(row);
-    });
+        apostadores.sort((a, b) => b.pontos - a.pontos);
+        
+        apostadores.forEach((ap, index) => {
+            const row = document.createElement('tr');
+            row.className = 'clickable-row';
+            row.onclick = () => abrirCanhotoHistorico(index);
+            row.innerHTML = `
+                <td><strong>?? ${ap.nome}</strong></td>
+                <td>${ap.cpf}</td>
+                <td>${ap.rodada}</td>
+                <td><span style="background:#106244; color:white; padding:4px 10px; border-radius:12px; font-weight:bold;">${ap.pontos || 0} pts</span></td>
+                <td style="color:#718096; font-size:12px;">${ap.horario}</td>
+            `;
+            tabela.appendChild(row);
+        });
+    } catch (error) {
+        console.error("Falha ao atualizar lista:", error);
+        // Não quebra a página se o servidor falhar
+    }
 }
 
     async function abrirCanhotoHistorico(index) {
