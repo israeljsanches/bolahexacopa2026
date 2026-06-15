@@ -594,15 +594,21 @@
 }
 
     async function abrirCanhotoHistorico(index) {
-        let apostadores = await (await fetch('/api/visitas')).json();
-        const ap = apostadores[index];
-        if(ap) {
-            globalTextoCanhoto = ap.canhoto;
-            document.getElementById('areaRecibo').style.display = "block";
-            document.getElementById('canhotoTexto').textContent = ap.canhoto;
-            document.getElementById('areaRecibo').scrollIntoView({ behavior: 'smooth' });
-        }
+    let apostadores = await (await fetch('/api/visitas')).json();
+    // Use o CPF ou um ID único em vez do index para garantir que puxa o correto
+    const tabela = document.getElementById("tabelaApostadores");
+    const linhas = tabela.querySelectorAll("tr");
+    // Vamos identificar o CPF clicado diretamente da linha da tabela
+    const cpfClicado = linhas[index].cells[1].textContent;
+    const ap = apostadores.find(a => a.cpf === cpfClicado);
+    
+    if(ap) {
+        globalTextoCanhoto = ap.canhoto;
+        document.getElementById('areaRecibo').style.display = "block";
+        document.getElementById('canhotoTexto').textContent = ap.canhoto;
+        document.getElementById('areaRecibo').scrollIntoView({ behavior: 'smooth' });
     }
+}
 
     async function limparListaProtegida() {
         if (prompt("Senha do Administrador:") === SENHA_ADMIN && confirm("Confirmar limpeza total?")) {
