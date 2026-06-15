@@ -6,32 +6,37 @@ const { MongoClient } = require("mongodb");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
-const client = new MongoClient(process.env.MONGO_URI);
+const client = new MongoClient(process.env.MONGO_URI, {
+    useUnifiedTopology: true,
+    connectTimeoutMS: 10000
+});
 
-// Função para pegar a coleção do banco
-async function getCollection(name) {
-    if (!client.topology || !client.topology.isConnected()) {
-        await client.connect();
-    }
-    return client.db("bolao_db").collection(name);
-}
+// Conecta uma vez só quando o servidor inicia
+let db;
+client.connect().then(() => {
+    db = client.db("bolao_db");
+    console.log("Conectado ao MongoDB com sucesso!");
+}).catch(err => console.error("Erro na conexão:", err));
 
 const server = http.createServer(async (req, res) => {
     const p = url.parse(req.url, true);
 
     if (req.method === "GET") {
         if (p.pathname === "/api/visitas") {
-            const col = await getCollection("apostas");
-            const data = await col.find({}).toArray();
-            res.writeHead(200, { "Content-Type": "application/json" });
-            return res.end(JSON.stringify(data));
+            try {
+                const data = await db.collection("apostas").find({}).toArray();
+                res.writeHead(200, { "Content-Type": "application/json" });
+                return res.end(JSON.stringify(data));
+            } catch (e) { res.writeHead(500); return res.end(); }
         }
         if (p.pathname === "/api/gabarito") {
-            const col = await getCollection("gabarito");
-            const data = await col.findOne({ _id: "atual" });
-            res.writeHead(200, { "Content-Type": "application/json" });
-            return res.end(JSON.stringify(data ? data.conteudo : {}));
+            try {
+                const data = await db.collection("gabarito").findOne({ _id: "atual" });
+                res.writeHead(200, { "Content-Type": "application/json" });
+                return res.end(JSON.stringify(data ? data.conteudo : {}));
+            } catch (e) { res.writeHead(500); return res.end(); }
         }
+        // Servir arquivos estáticos (index.html)
         let filePath = path.join(PUBLIC_DIR, p.pathname === "/" ? "index.html" : p.pathname);
         fs.readFile(filePath, (err, content) => {
             if (err) { res.writeHead(404); res.end(); }
@@ -45,15 +50,12 @@ const server = http.createServer(async (req, res) => {
         req.on("data", chunk => body += chunk);
         req.on("end", async () => {
             try {
-                const data = body ? JSON.parse(body) : null;
-                const colApostas = await getCollection("apostas");
-                const colGabarito = await getCollection("gabarito");
-
+                const data = JSON.parse(body);
                 if (p.pathname === "/api/visitas") {
-                    await colApostas.deleteMany({});
-                    if (data.length > 0) await colApostas.insertMany(data);
+                    await db.collection("apostas").deleteMany({});
+                    if (data.length > 0) await db.collection("apostas").insertMany(data);
                 } else if (p.pathname === "/api/gabarito") {
-                    await colGabarito.updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
+                    await db.collection("gabarito").updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
                 }
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: true }));
@@ -66,4 +68,4 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando!`));
+server.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}`));
