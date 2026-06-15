@@ -8,8 +8,11 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const client = new MongoClient(process.env.MONGO_URI);
 
+// Função para pegar a coleção do banco
 async function getCollection(name) {
-    await client.connect();
+    if (!client.topology || !client.topology.isConnected()) {
+        await client.connect();
+    }
     return client.db("bolao_db").collection(name);
 }
 
@@ -18,14 +21,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET") {
         if (p.pathname === "/api/visitas") {
-            const collection = await getCollection("apostas");
-            const data = await collection.find({}).toArray();
+            const col = await getCollection("apostas");
+            const data = await col.find({}).toArray();
             res.writeHead(200, { "Content-Type": "application/json" });
             return res.end(JSON.stringify(data));
         }
         if (p.pathname === "/api/gabarito") {
-            const collection = await getCollection("gabarito");
-            const data = await collection.findOne({ _id: "atual" });
+            const col = await getCollection("gabarito");
+            const data = await col.findOne({ _id: "atual" });
             res.writeHead(200, { "Content-Type": "application/json" });
             return res.end(JSON.stringify(data ? data.conteudo : {}));
         }
@@ -43,15 +46,14 @@ const server = http.createServer(async (req, res) => {
         req.on("end", async () => {
             try {
                 const data = body ? JSON.parse(body) : null;
+                const colApostas = await getCollection("apostas");
+                const colGabarito = await getCollection("gabarito");
+
                 if (p.pathname === "/api/visitas") {
-                    const collection = await getCollection("apostas");
-                    await collection.deleteMany({});
-                    await collection.insertMany(data);
+                    await colApostas.deleteMany({});
+                    if (data.length > 0) await colApostas.insertMany(data);
                 } else if (p.pathname === "/api/gabarito") {
-                    const collection = await getCollection("gabarito");
-                    await collection.updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
-                } else if (p.pathname === "/api/processar") {
-                    // Mantenha sua lógica de processamento aqui se precisar...
+                    await colGabarito.updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
                 }
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: true }));
