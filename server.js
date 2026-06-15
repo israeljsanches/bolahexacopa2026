@@ -7,8 +7,13 @@ const { MongoClient } = require("mongodb");
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 
-const client = new MongoClient(process.env.MONGO_URI);
+// DEPURACAO: Logar se a variavel existe
+console.log("Variável MONGO_URI definida:", !!process.env.MONGO_URI);
+
+const client = new MongoClient(process.env.MONGO_URI || "mongodb://placeholder");
 let db;
+
+// ... resto do seu código
 
 async function start() {
     try {
