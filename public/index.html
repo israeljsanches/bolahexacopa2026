@@ -593,26 +593,30 @@
     }
 }
 
-    async function abrirCanhotoHistorico(index) {
-        // Busca a lista completa do servidor
-        const response = await fetch('/api/visitas');
-        const apostadores = await response.json();
-        
-        // Identifica o CPF clicado na linha da tabela, ignorando filtros
-        const tabela = document.getElementById("tabelaApostadores");
-        const linhaClicada = tabela.querySelectorAll("tr")[index];
-        const cpfClicado = linhaClicada.cells[1].textContent;
-        
-        // Busca o objeto original pelo CPF
-        const ap = apostadores.find(a => a.cpf === cpfClicado);
-        
-        if(ap) {
-            globalTextoCanhoto = ap.canhoto;
-            document.getElementById('areaRecibo').style.display = "block";
-            document.getElementById('canhotoTexto').textContent = ap.canhoto;
-            document.getElementById('areaRecibo').scrollIntoView({ behavior: 'smooth' });
-        }
+    // Excluir aposta
+async function excluirAposta(cpf) {
+    if (prompt("Senha do Administrador:") === SENHA_ADMIN && confirm("Excluir esta aposta?")) {
+        await fetch('/api/excluir-aposta', { method: 'POST', body: JSON.stringify({ cpf }) });
+        atualizarListaTela();
     }
+}
+
+// Corrigido para não abrir canhoto errado
+async function abrirCanhotoHistorico(index) {
+    const apostadores = await (await fetch('/api/visitas')).json();
+    const tabela = document.getElementById("tabelaApostadores");
+    const cpfClicado = tabela.querySelectorAll("tr")[index].cells[1].textContent;
+    const ap = apostadores.find(a => a.cpf === cpfClicado);
+    
+    if(ap) {
+        globalTextoCanhoto = ap.canhoto;
+        document.getElementById('areaRecibo').style.display = "block";
+        document.getElementById('canhotoTexto').textContent = ap.canhoto;
+        // Adicionei um botão excluir no canhoto se quiser
+        document.getElementById('canhotoTexto').innerHTML += `<br><button class="btn-danger" onclick="excluirAposta('${ap.cpf}')">Excluir Canhoto</button>`;
+        document.getElementById('areaRecibo').scrollIntoView({ behavior: 'smooth' });
+    }
+}
 
     async function limparListaProtegida() {
         if (prompt("Senha do Administrador:") === SENHA_ADMIN && confirm("Confirmar limpeza total?")) {
