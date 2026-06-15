@@ -6,16 +6,14 @@ const { MongoClient } = require("mongodb");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
-const client = new MongoClient(process.env.MONGO_URI, {
-    useUnifiedTopology: true,
-    connectTimeoutMS: 10000
-});
 
-// Conecta uma vez só quando o servidor inicia
+// Conecta uma única vez ao iniciar
+const client = new MongoClient(process.env.MONGO_URI);
 let db;
+
 client.connect().then(() => {
     db = client.db("bolao_db");
-    console.log("Conectado ao MongoDB com sucesso!");
+    console.log("Conectado ao MongoDB!");
 }).catch(err => console.error("Erro na conexão:", err));
 
 const server = http.createServer(async (req, res) => {
@@ -36,7 +34,7 @@ const server = http.createServer(async (req, res) => {
                 return res.end(JSON.stringify(data ? data.conteudo : {}));
             } catch (e) { res.writeHead(500); return res.end(); }
         }
-        // Servir arquivos estáticos (index.html)
+        
         let filePath = path.join(PUBLIC_DIR, p.pathname === "/" ? "index.html" : p.pathname);
         fs.readFile(filePath, (err, content) => {
             if (err) { res.writeHead(404); res.end(); }
@@ -53,7 +51,7 @@ const server = http.createServer(async (req, res) => {
                 const data = JSON.parse(body);
                 if (p.pathname === "/api/visitas") {
                     await db.collection("apostas").deleteMany({});
-                    if (data.length > 0) await db.collection("apostas").insertMany(data);
+                    if (data && data.length > 0) await db.collection("apostas").insertMany(data);
                 } else if (p.pathname === "/api/gabarito") {
                     await db.collection("gabarito").updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
                 }
