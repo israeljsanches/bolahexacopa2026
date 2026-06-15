@@ -22,7 +22,6 @@ async function start() {
 const server = http.createServer(async (req, res) => {
     const p = url.parse(req.url, true);
 
-    // --- MÉTODOS GET ---
     if (req.method === "GET") {
         if (p.pathname === "/api/visitas") {
             const data = await db.collection("apostas").find().toArray();
@@ -34,7 +33,6 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200, { "Content-Type": "application/json" });
             return res.end(JSON.stringify(data ? data.conteudo : {}));
         }
-
         let filePath = path.join(PUBLIC_DIR, p.pathname === "/" ? "index.html" : p.pathname);
         fs.readFile(filePath, (err, content) => {
             if (err) { res.writeHead(404); res.end(); }
@@ -43,46 +41,37 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // --- MÉTODOS POST ---
     if (req.method === "POST") {
         let body = "";
         req.on("data", chunk => body += chunk);
         req.on("end", async () => {
             try {
-                // Tratamento de corpo vazio para evitar erros
-                let data = null;
-                if (body) {
-                    data = JSON.parse(body);
-                }
+                let data = body ? JSON.parse(body) : {};
                 
-                if (p.pathname === "/api/visitas" && data) {
+                if (p.pathname === "/api/visitas") {
                     await db.collection("apostas").deleteMany({});
                     if (data.length > 0) await db.collection("apostas").insertMany(data);
-                } 
-                else if (p.pathname === "/api/gabarito" && data) {
+                } else if (p.pathname === "/api/excluir-aposta") {
+                    // Nova função para excluir aposta individual
+                    await db.collection("apostas").deleteOne({ cpf: data.cpf });
+                } else if (p.pathname === "/api/gabarito") {
                     await db.collection("gabarito").updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
-                } 
-                else if (p.pathname === "/api/processar") {
+                } else if (p.pathname === "/api/processar") {
                     const apostas = await db.collection("apostas").find().toArray();
                     const gabaritoDoc = await db.collection("gabarito").findOne({ _id: "atual" });
-                    
                     if (gabaritoDoc && gabaritoDoc.conteudo) {
                         const gabarito = gabaritoDoc.conteudo;
                         for (let aposta of apostas) {
                             let totalPontos = 0;
-                            if (aposta.palpites && typeof aposta.palpites === 'object') {
+                            if (aposta.palpites) {
                                 for (let matchId in aposta.palpites) {
                                     if (gabarito[matchId]) {
                                         const p = aposta.palpites[matchId];
                                         const r = gabarito[matchId];
-                                        if (p && r) {
-                                            const pA = Number(p.goalsA), pB = Number(p.goalsB);
-                                            const rA = Number(r.realA), rB = Number(r.realB);
-                                            if (!isNaN(pA) && !isNaN(rA)) {
-                                                if (pA === rA && pB === rB) totalPontos += 10;
-                                                else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
-                                            }
-                                        }
+                                        const pA = Number(p.goalsA), pB = Number(p.goalsB);
+                                        const rA = Number(r.realA), rB = Number(r.realB);
+                                        if (pA === rA && pB === rB) totalPontos += 10;
+                                        else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
                                     }
                                 }
                             }
@@ -90,13 +79,12 @@ const server = http.createServer(async (req, res) => {
                         }
                     }
                 }
-                
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: true }));
-            } catch (err) { 
-                console.error("Erro fatal no processamento:", err);
-                res.writeHead(500); 
-                res.end(JSON.stringify({ error: err.message })); 
+            } catch (err) {
+                console.error("Erro no servidor:", err);
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: err.message }));
             }
         });
         return;
