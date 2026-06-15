@@ -22,7 +22,6 @@ async function start() {
 const server = http.createServer(async (req, res) => {
     const p = url.parse(req.url, true);
 
-    // --- MÉTODOS GET ---
     if (req.method === "GET") {
         if (p.pathname === "/api/visitas") {
             const data = await db.collection("apostas").find().toArray();
@@ -43,7 +42,6 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // --- MÉTODOS POST ---
     if (req.method === "POST") {
         let body = "";
         req.on("data", chunk => body += chunk);
@@ -66,18 +64,18 @@ const server = http.createServer(async (req, res) => {
                         const gabarito = gabaritoDoc.conteudo;
                         for (let aposta of apostas) {
                             let totalPontos = 0;
-                            // Segurança: verifica se existem palpites antes de iterar
-                            if (aposta.palpites) {
+                            // Adicionada verificação de segurança extra para evitar erro 500
+                            if (aposta.palpites && typeof aposta.palpites === 'object') {
                                 for (let matchId in aposta.palpites) {
                                     if (gabarito[matchId]) {
                                         const p = aposta.palpites[matchId];
                                         const r = gabarito[matchId];
-                                        // Conversão forçada para número evita erro de comparação
-                                        const pA = Number(p.goalsA), pB = Number(p.goalsB);
-                                        const rA = Number(r.realA), rB = Number(r.realB);
-                                        
-                                        if (pA === rA && pB === rB) totalPontos += 10;
-                                        else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
+                                        if (p && r) {
+                                            const pA = Number(p.goalsA), pB = Number(p.goalsB);
+                                            const rA = Number(r.realA), rB = Number(r.realB);
+                                            if (pA === rA && pB === rB) totalPontos += 10;
+                                            else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
+                                        }
                                     }
                                 }
                             }
@@ -89,9 +87,9 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: true }));
             } catch (err) { 
-                console.error("Erro no servidor:", err);
+                console.error("Erro fatal no processamento:", err);
                 res.writeHead(500); 
-                res.end(JSON.stringify({ error: "Erro no servidor" })); 
+                res.end(JSON.stringify({ error: err.message })); 
             }
         });
         return;
