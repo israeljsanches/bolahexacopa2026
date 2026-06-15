@@ -49,15 +49,17 @@ const server = http.createServer(async (req, res) => {
         req.on("data", chunk => body += chunk);
         req.on("end", async () => {
             try {
-                // Proteção contra corpo de requisição vazio
-                if (!body) throw new Error("Corpo da requisição vazio");
-                const data = JSON.parse(body);
+                // Tratamento de corpo vazio para evitar erros
+                let data = null;
+                if (body) {
+                    data = JSON.parse(body);
+                }
                 
-                if (p.pathname === "/api/visitas") {
+                if (p.pathname === "/api/visitas" && data) {
                     await db.collection("apostas").deleteMany({});
-                    if (data && data.length > 0) await db.collection("apostas").insertMany(data);
+                    if (data.length > 0) await db.collection("apostas").insertMany(data);
                 } 
-                else if (p.pathname === "/api/gabarito") {
+                else if (p.pathname === "/api/gabarito" && data) {
                     await db.collection("gabarito").updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
                 } 
                 else if (p.pathname === "/api/processar") {
@@ -68,15 +70,19 @@ const server = http.createServer(async (req, res) => {
                         const gabarito = gabaritoDoc.conteudo;
                         for (let aposta of apostas) {
                             let totalPontos = 0;
-                            if (aposta.palpites) {
+                            if (aposta.palpites && typeof aposta.palpites === 'object') {
                                 for (let matchId in aposta.palpites) {
                                     if (gabarito[matchId]) {
                                         const p = aposta.palpites[matchId];
                                         const r = gabarito[matchId];
-                                        const pA = Number(p.goalsA), pB = Number(p.goalsB);
-                                        const rA = Number(r.realA), rB = Number(r.realB);
-                                        if (pA === rA && pB === rB) totalPontos += 10;
-                                        else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
+                                        if (p && r) {
+                                            const pA = Number(p.goalsA), pB = Number(p.goalsB);
+                                            const rA = Number(r.realA), rB = Number(r.realB);
+                                            if (!isNaN(pA) && !isNaN(rA)) {
+                                                if (pA === rA && pB === rB) totalPontos += 10;
+                                                else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -84,6 +90,7 @@ const server = http.createServer(async (req, res) => {
                         }
                     }
                 }
+                
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: true }));
             } catch (err) { 
