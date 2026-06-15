@@ -7,34 +7,33 @@ const { MongoClient } = require("mongodb");
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 
-// Conecta uma única vez ao iniciar
+// Conecte ao MongoDB usando a variável de ambiente que configuramos no Render
 const client = new MongoClient(process.env.MONGO_URI);
 let db;
 
-client.connect().then(() => {
-    db = client.db("bolao_db");
-    console.log("Conectado ao MongoDB!");
-}).catch(err => console.error("Erro na conexão:", err));
+// Função para garantir que o banco esteja conectado
+async function connectDB() {
+    if (!db) {
+        await client.connect();
+        db = client.db("bolao_database"); // Nome do seu banco
+    }
+}
 
 const server = http.createServer(async (req, res) => {
     const p = url.parse(req.url, true);
+    await connectDB();
 
+    // ROTA GET: Busca dados
     if (req.method === "GET") {
         if (p.pathname === "/api/visitas") {
             try {
-                const data = await db.collection("apostas").find({}).toArray();
+                const data = await db.collection("apostas").find().toArray();
                 res.writeHead(200, { "Content-Type": "application/json" });
                 return res.end(JSON.stringify(data));
-            } catch (e) { res.writeHead(500); return res.end(); }
-        }
-        if (p.pathname === "/api/gabarito") {
-            try {
-                const data = await db.collection("gabarito").findOne({ _id: "atual" });
-                res.writeHead(200, { "Content-Type": "application/json" });
-                return res.end(JSON.stringify(data ? data.conteudo : {}));
-            } catch (e) { res.writeHead(500); return res.end(); }
+            } catch (err) { res.writeHead(500); return res.end(); }
         }
         
+        // Servir o arquivo index.html principal
         let filePath = path.join(PUBLIC_DIR, p.pathname === "/" ? "index.html" : p.pathname);
         fs.readFile(filePath, (err, content) => {
             if (err) { res.writeHead(404); res.end(); }
@@ -43,6 +42,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // ROTA POST: Grava dados
     if (req.method === "POST") {
         let body = "";
         req.on("data", chunk => body += chunk);
@@ -51,19 +51,14 @@ const server = http.createServer(async (req, res) => {
                 const data = JSON.parse(body);
                 if (p.pathname === "/api/visitas") {
                     await db.collection("apostas").deleteMany({});
-                    if (data && data.length > 0) await db.collection("apostas").insertMany(data);
-                } else if (p.pathname === "/api/gabarito") {
-                    await db.collection("gabarito").updateOne({ _id: "atual" }, { $set: { conteudo: data } }, { upsert: true });
+                    if (data.length > 0) await db.collection("apostas").insertMany(data);
                 }
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: true }));
-            } catch (err) {
-                res.writeHead(500);
-                res.end(JSON.stringify({ error: err.message }));
-            }
+            } catch (err) { res.writeHead(500); res.end(); }
         });
         return;
     }
 });
 
-server.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando na porta ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => console.log(`Servidor rodando!`));
