@@ -22,6 +22,7 @@ async function start() {
 const server = http.createServer(async (req, res) => {
     const p = url.parse(req.url, true);
 
+    // --- MÉTODOS GET ---
     if (req.method === "GET") {
         if (p.pathname === "/api/visitas") {
             const data = await db.collection("apostas").find().toArray();
@@ -42,15 +43,14 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // --- MÉTODOS POST ---
     if (req.method === "POST") {
         let body = "";
         req.on("data", chunk => body += chunk);
         req.on("end", async () => {
             try {
-                // AQUI A MUDANÇA: Verifica se body está vazio antes de tentar dar JSON.parse
-                if (!body) {
-                    throw new Error("Corpo da requisição vazio");
-                }
+                // Proteção contra corpo de requisição vazio
+                if (!body) throw new Error("Corpo da requisição vazio");
                 const data = JSON.parse(body);
                 
                 if (p.pathname === "/api/visitas") {
@@ -84,7 +84,6 @@ const server = http.createServer(async (req, res) => {
                         }
                     }
                 }
-                
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ ok: true }));
             } catch (err) { 
