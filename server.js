@@ -47,6 +47,10 @@ const server = http.createServer(async (req, res) => {
         req.on("data", chunk => body += chunk);
         req.on("end", async () => {
             try {
+                // AQUI A MUDANÇA: Verifica se body está vazio antes de tentar dar JSON.parse
+                if (!body) {
+                    throw new Error("Corpo da requisição vazio");
+                }
                 const data = JSON.parse(body);
                 
                 if (p.pathname === "/api/visitas") {
@@ -64,18 +68,15 @@ const server = http.createServer(async (req, res) => {
                         const gabarito = gabaritoDoc.conteudo;
                         for (let aposta of apostas) {
                             let totalPontos = 0;
-                            // Adicionada verificação de segurança extra para evitar erro 500
-                            if (aposta.palpites && typeof aposta.palpites === 'object') {
+                            if (aposta.palpites) {
                                 for (let matchId in aposta.palpites) {
                                     if (gabarito[matchId]) {
                                         const p = aposta.palpites[matchId];
                                         const r = gabarito[matchId];
-                                        if (p && r) {
-                                            const pA = Number(p.goalsA), pB = Number(p.goalsB);
-                                            const rA = Number(r.realA), rB = Number(r.realB);
-                                            if (pA === rA && pB === rB) totalPontos += 10;
-                                            else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
-                                        }
+                                        const pA = Number(p.goalsA), pB = Number(p.goalsB);
+                                        const rA = Number(r.realA), rB = Number(r.realB);
+                                        if (pA === rA && pB === rB) totalPontos += 10;
+                                        else if ((pA > pB && rA > rB) || (pA < pB && rA < rB) || (pA === pB && rA === rB)) totalPontos += 5;
                                     }
                                 }
                             }
